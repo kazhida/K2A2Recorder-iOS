@@ -17,6 +17,11 @@ final class BloodPressureRecord {
     var diastolic: Double
     var unit: String
     var syncVersion: Int
+    var sourceBundleIdentifier: String?
+
+    var isCreatedByThisApp: Bool {
+        sourceBundleIdentifier == Bundle.main.bundleIdentifier
+    }
 
     init(
         localID: UUID = UUID(),
@@ -25,7 +30,8 @@ final class BloodPressureRecord {
         systolic: Double,
         diastolic: Double,
         unit: String = "mmHg",
-        syncVersion: Int = 1
+        syncVersion: Int = 1,
+        sourceBundleIdentifier: String? = Bundle.main.bundleIdentifier
     ) {
         self.localID = localID
         self.healthKitCorrelationID = healthKitCorrelationID
@@ -34,5 +40,20 @@ final class BloodPressureRecord {
         self.diastolic = diastolic
         self.unit = unit
         self.syncVersion = syncVersion
+        self.sourceBundleIdentifier = sourceBundleIdentifier
+    }
+
+    func copyReplacingBloodPressure(systolic: Double, diastolic: Double) -> BloodPressureRecord {
+        BloodPressureRecord(
+            localID: localID,
+            healthKitCorrelationID: nil,
+            measuredAt: measuredAt,
+            systolic: systolic,
+            diastolic: diastolic,
+            unit: unit,
+            syncVersion: syncVersion + 1,
+            sourceBundleIdentifier: Bundle.main.bundleIdentifier
+        )
     }
 }
+

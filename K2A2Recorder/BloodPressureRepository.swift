@@ -41,16 +41,16 @@ final class BloodPressureRepository {
     private static let diastolicType = HKQuantityType.quantityType(forIdentifier: .bloodPressureDiastolic)!
     private static let bloodPressureType = HKCorrelationType.correlationType(forIdentifier: .bloodPressure)!
 
+    // Request authorization for the quantity samples inside the blood pressure correlation.
+    // Requesting .bloodPressure directly can raise an NSException on HealthKit.
     private static let shareTypes: Set<HKSampleType> = [
         systolicType,
-        diastolicType,
-        bloodPressureType
+        diastolicType
     ]
 
     private static let readTypes: Set<HKObjectType> = [
         systolicType,
-        diastolicType,
-        bloodPressureType
+        diastolicType
     ]
 
     init(healthStore: HKHealthStore = HKHealthStore()) {
@@ -59,6 +59,14 @@ final class BloodPressureRepository {
 
     func requestAuthorization() async throws {
         try ensureHealthDataAvailable()
+
+        let status = try await healthStore.statusForAuthorizationRequest(
+            toShare: Self.shareTypes,
+            read: Self.readTypes
+        )
+
+        guard status == .shouldRequest else { return }
+
         try await healthStore.requestAuthorization(
             toShare: Self.shareTypes,
             read: Self.readTypes
@@ -215,7 +223,8 @@ final class BloodPressureRepository {
             systolic: systolic.quantity.doubleValue(for: unit),
             diastolic: diastolic.quantity.doubleValue(for: unit),
             unit: "mmHg",
-            syncVersion: syncVersion
+            syncVersion: syncVersion,
+            sourceBundleIdentifier: correlation.sourceRevision.source.bundleIdentifier
         )
     }
 
@@ -244,4 +253,3 @@ final class BloodPressureRepository {
         }
     }
 }
-

@@ -11,10 +11,12 @@ struct BloodPressureItem: View {
     let record: BloodPressureRecord
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(record.measuredAt, format: Date.FormatStyle(date: .numeric, time: .shortened))
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+
+            Spacer(minLength: 16)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("\(Int(record.systolic.rounded()))/\(Int(record.diastolic.rounded()))")
@@ -25,6 +27,17 @@ struct BloodPressureItem: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            .multilineTextAlignment(.trailing)
+
+            Group {
+                if record.isCreatedByThisApp {
+                    Image(systemName: "pencil")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Color.clear
+                }
+            }
+            .frame(width: 24, height: 24)
         }
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
