@@ -112,7 +112,7 @@ struct ContentView: View {
             .alert(
                 "エラー",
                 isPresented: Binding(
-                    get: { alertMessage != nil },
+                    get: { !(alertMessage?.isEmpty ?? true) },
                     set: { isPresented in
                         if !isPresented {
                             alertMessage = nil
@@ -157,7 +157,12 @@ struct ContentView: View {
         Task {
             do {
                 try await speechInputLogger.startLogging { recognizedText in
-                    alertMessage = recognizedText
+                    let pressures = recognizedText.split(separator: /\D+/).compactMap { Int($0) }
+                    if pressures.count >= 2 {
+                        inputSystolic = pressures[0]
+                        inputDiastolic = pressures[1]
+                    }
+                    alertMessage = nil
                 }
             } catch {
                 alertMessage = error.localizedDescription

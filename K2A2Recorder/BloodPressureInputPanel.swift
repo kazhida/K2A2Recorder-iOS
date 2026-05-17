@@ -72,6 +72,7 @@ struct BloodPressureInputPanel: View {
                 HStack(spacing: 16) {
                     Button(action: onMicClick) {
                         Image(systemName: "mic.fill")
+                            .font(.system(size: 34))
                     }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("音声入力")

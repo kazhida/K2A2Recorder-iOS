@@ -33,14 +33,21 @@ final class SpeechInputLogger {
 
     private let audioEngine = AVAudioEngine()
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "ja-JP"))
+    private let silenceTimeoutNanoseconds: UInt64 = 2_000_000_000
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    private var silenceTimer: Task<Void, Never>?
+    private var lastRecognizedText = ""
+    private var didSendResult = false
 
     func startLogging(onResult: @escaping @MainActor (String) -> Void) async throws {
         stopLogging()
 
         try await requestSpeechAuthorization()
         try await requestMicrophonePermission()
+        try configureAudioSession()
+        lastRecognizedText = ""
+        didSendResult = false
 
         guard let speechRecognizer, speechRecognizer.isAvailable else {
             throw SpeechInputError.speechRecognizerUnavailable
@@ -62,10 +69,19 @@ final class SpeechInputLogger {
         }
 
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            if let result, result.isFinal {
+            if let result {
                 let text = result.bestTranscription.formattedString
-                Task { @MainActor in
-                    onResult(text)
+                if !text.isEmpty {
+                    Task { @MainActor in
+                        self?.lastRecognizedText = text
+                        self?.resetSilenceTimer(onResult: onResult)
+                    }
+                }
+
+                if result.isFinal {
+                    Task { @MainActor in
+                        self?.sendResultAndStop(onResult: onResult)
+                    }
                 }
             }
 
@@ -86,10 +102,43 @@ final class SpeechInputLogger {
             audioEngine.inputNode.removeTap(onBus: 0)
         }
 
+        silenceTimer?.cancel()
+        silenceTimer = nil
         recognitionRequest?.endAudio()
         recognitionRequest = nil
         recognitionTask?.cancel()
         recognitionTask = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func resetSilenceTimer(onResult: @escaping @MainActor (String) -> Void) {
+        silenceTimer?.cancel()
+        silenceTimer = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(nanoseconds: self.silenceTimeoutNanoseconds)
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                self.sendResultAndStop(onResult: onResult)
+            }
+        }
+    }
+
+    private func sendResultAndStop(onResult: @escaping @MainActor (String) -> Void) {
+        guard !didSendResult else { return }
+        didSendResult = true
+
+        if !lastRecognizedText.isEmpty {
+            onResult(lastRecognizedText)
+        }
+
+        stopLogging()
+    }
+
+    private func configureAudioSession() throws {
+        let audioSession = AVAudioSession.sharedInstance()
+        try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
     }
 
     private func requestSpeechAuthorization() async throws {
