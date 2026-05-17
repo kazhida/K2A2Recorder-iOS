@@ -9,10 +9,17 @@ import Foundation
 import HealthKit
 
 final class BloodPressureRepository {
+    struct BloodPressurePage {
+        let records: [BloodPressureRecord]
+        let nextPageCursor: Date?
+        let hasNextPage: Bool
+    }
+
     enum RepositoryError: LocalizedError {
         case healthDataUnavailable
         case missingHealthKitCorrelationID
         case correlationNotFound(UUID)
+        case invalidBloodPressureCorrelation(UUID)
 
         var errorDescription: String? {
             switch self {
@@ -22,6 +29,8 @@ final class BloodPressureRepository {
                 "The blood pressure record does not have a HealthKit correlation ID."
             case .correlationNotFound(let id):
                 "Blood pressure correlation was not found: \(id.uuidString)"
+            case .invalidBloodPressureCorrelation(let id):
+                "Blood pressure correlation does not contain systolic and diastolic samples: \(id.uuidString)"
             }
         }
     }
@@ -83,6 +92,22 @@ final class BloodPressureRepository {
         try await healthStore.delete(correlation)
     }
 
+    func fetchPage(limit: Int = 50, before cursor: Date? = nil) async throws -> BloodPressurePage {
+        try ensureHealthDataAvailable()
+
+        let queryLimit = max(limit, 1) + 1
+        let correlations = try await fetchBloodPressureCorrelations(limit: queryLimit, before: cursor)
+        let pageCorrelations = Array(correlations.prefix(max(limit, 1)))
+        let records = try pageCorrelations.map(makeBloodPressureRecord(from:))
+        let hasNextPage = correlations.count > pageCorrelations.count
+
+        return BloodPressurePage(
+            records: records,
+            nextPageCursor: hasNextPage ? records.last?.measuredAt : nil,
+            hasNextPage: hasNextPage
+        )
+    }
+
     private func ensureHealthDataAvailable() throws {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw RepositoryError.healthDataUnavailable
@@ -130,6 +155,74 @@ final class BloodPressureRepository {
         ]
     }
 
+    private func fetchBloodPressureCorrelations(limit: Int, before cursor: Date?) async throws -> [HKCorrelation] {
+        try await withCheckedThrowingContinuation { continuation in
+            let predicate = cursor.map {
+                HKQuery.predicateForSamples(
+                    withStart: nil,
+                    end: $0,
+                    options: .strictStartDate
+                )
+            }
+
+            let sortDescriptor = NSSortDescriptor(
+                key: HKSampleSortIdentifierStartDate,
+                ascending: false
+            )
+
+            let query = HKSampleQuery(
+                sampleType: Self.bloodPressureType,
+                predicate: predicate,
+                limit: limit,
+                sortDescriptors: [sortDescriptor]
+            ) { _, samples, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                let correlations = samples?.compactMap { $0 as? HKCorrelation } ?? []
+                let filteredCorrelations = cursor.map { cursor in
+                    correlations.filter { $0.startDate < cursor }
+                } ?? correlations
+
+                continuation.resume(returning: filteredCorrelations)
+            }
+
+            healthStore.execute(query)
+        }
+    }
+
+    private func makeBloodPressureRecord(from correlation: HKCorrelation) throws -> BloodPressureRecord {
+        guard
+            let systolic = quantitySample(in: correlation, type: Self.systolicType),
+            let diastolic = quantitySample(in: correlation, type: Self.diastolicType)
+        else {
+            throw RepositoryError.invalidBloodPressureCorrelation(correlation.uuid)
+        }
+
+        let localID = (correlation.metadata?[HKMetadataKeyExternalUUID] as? String)
+            .flatMap(UUID.init(uuidString:)) ?? UUID()
+        let syncVersion = correlation.metadata?[HKMetadataKeySyncVersion] as? Int
+            ?? (correlation.metadata?[HKMetadataKeySyncVersion] as? NSNumber)?.intValue
+            ?? 1
+        let unit = HKUnit.millimeterOfMercury()
+
+        return BloodPressureRecord(
+            localID: localID,
+            healthKitCorrelationID: correlation.uuid,
+            measuredAt: correlation.startDate,
+            systolic: systolic.quantity.doubleValue(for: unit),
+            diastolic: diastolic.quantity.doubleValue(for: unit),
+            unit: "mmHg",
+            syncVersion: syncVersion
+        )
+    }
+
+    private func quantitySample(in correlation: HKCorrelation, type: HKQuantityType) -> HKQuantitySample? {
+        correlation.objects.first { $0.sampleType == type } as? HKQuantitySample
+    }
+
     private func findBloodPressureCorrelation(id: UUID) async throws -> HKCorrelation? {
         try await withCheckedThrowingContinuation { continuation in
             let predicate = HKQuery.predicateForObject(with: id)
@@ -151,3 +244,4 @@ final class BloodPressureRepository {
         }
     }
 }
+
