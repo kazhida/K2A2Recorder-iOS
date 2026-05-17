@@ -1,0 +1,78 @@
+# GitHub Official iOS .gitignore Template
+# ==========================================
+
+# Xcode
+#
+# ユーザー固有の設定（開いているファイル、ウインドウ位置、ブレークポイントなど）
+# これらを共有すると、他の開発者のXcode環境と衝突します
+*.mode1v3
+*.mode2v3
+*.storyboarduserstate
+*.pbxuser
+*.xcuserdata
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+
+# ビルド成果物・一時ファイル
+#
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager (SPM)
+#
+# 依存ライブラリのチェックアウトデータは除外（Package.resolvedは共有するため残す）
+.build/
+
+# CocoaPods
+#
+# Podsフォルダ自体は重いため除外するのが一般的
+# (Podfile, Podfile.lock はGit管理に含める必要があります)
+Pods/
+*.xcworkspace/
+!default.xcworkspace
+
+# Carthage
+#
+Carthage/Build/
+Carthage/Checkouts/
+
+# AccuRev
+#
+.accurev/
+
+# Fastlane
+#
+# 自動化ツールFastlaneのレポートやスクリーンショット
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# 各種パッケージマネージャーのログ
+#
+npm-debug.log
+yarn-error.log
+
+# OS generated files (Mac固有の一時ファイル)
+#
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+.idea/
+
+# Security & Environment (環境変数・秘密鍵)
+# ==========================================
+# APIキーやトークンなどを環境変数として切り離す場合、それらのファイルを除外します
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
