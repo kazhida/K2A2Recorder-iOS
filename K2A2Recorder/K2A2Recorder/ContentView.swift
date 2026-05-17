@@ -222,13 +222,6 @@ struct ContentView: View {
                 let healthKitID = try await repository.add(record)
                 record.healthKitCorrelationID = healthKitID
 
-                if currentMode == .edit, let originalRecord {
-                    do {
-                        try await repository.delete(originalRecord)
-                    } catch {
-                        alertMessage = "古い血圧データの削除に失敗しました。\n\(error.localizedDescription)"
-                    }
-                }
 
                 if currentMode == .edit,
                    let originalRecord,

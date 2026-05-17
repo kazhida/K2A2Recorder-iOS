@@ -93,11 +93,23 @@ final class BloodPressureRepository {
     func delete(correlationID: UUID) async throws {
         try ensureHealthDataAvailable()
 
+        print("Delete lookup correlationID: \(correlationID)")
+
         guard let correlation = try await findBloodPressureCorrelation(id: correlationID) else {
+            print("Delete lookup failed: correlation not found")
             throw RepositoryError.correlationNotFound(correlationID)
         }
 
-        try await healthStore.delete(correlation)
+        print("Delete lookup succeeded: \(correlation.uuid)")
+        print("Delete source bundle: \(correlation.sourceRevision.source.bundleIdentifier)")
+
+        do {
+            try await healthStore.delete(correlation)
+            print("Delete succeeded: \(correlation.uuid)")
+        } catch {
+            print("Delete failed: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     func fetchPage(limit: Int = 50, before cursor: Date? = nil) async throws -> BloodPressurePage {

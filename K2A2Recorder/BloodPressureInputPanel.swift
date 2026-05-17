@@ -122,7 +122,7 @@ private struct BloodPressureTextField: View {
     let valueRange: ClosedRange<Int>
     var onValueChange: (Int?) -> Void = { _ in }
 
-    @State private var text: String
+    @State private var selectedValue: Int?
 
     init(
         label: String,
@@ -134,51 +134,41 @@ private struct BloodPressureTextField: View {
         self.value = value
         self.valueRange = valueRange
         self.onValueChange = onValueChange
-        _text = State(initialValue: value.map(String.init) ?? "")
-    }
-
-    private var isError: Bool {
-        guard let parsedValue = Int(text), !text.isEmpty else { return false }
-        return !valueRange.contains(parsedValue)
+        _selectedValue = State(initialValue: value)
     }
 
     var body: some View {
-        TextField(label, text: Binding(
-            get: { text },
-            set: updateText(_:)
-        ))
-        .keyboardType(.numberPad)
-        .textFieldStyle(.roundedBorder)
-        .font(.title2)
-        .multilineTextAlignment(.trailing)
-        .monospacedDigit()
-        .frame(minWidth: 96)
-        .overlay {
-            if isError {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(.red, lineWidth: 1)
+        VStack(spacing: 4) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker(label, selection: Binding(
+                get: { selectedValue },
+                set: { selectedValue = $0 }
+            )) {
+                Text("--")
+                    .tag(Optional<Int>.none)
+
+                ForEach(Array(valueRange), id: \.self) { value in
+                    Text("\(value)")
+                        .monospacedDigit()
+                        .tag(Optional.some(value))
+                }
             }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            .frame(width: 96, height: 120)
+            .clipped()
+        }
+        .onChange(of: selectedValue) { _, nextValue in
+            onValueChange(nextValue)
         }
         .onChange(of: value) { _, nextValue in
-            let nextText = nextValue.map(String.init) ?? ""
-            if Int(text) != nextValue {
-                text = nextText
+            if selectedValue != nextValue {
+                selectedValue = nextValue
             }
         }
-    }
-
-    private func updateText(_ nextText: String) {
-        let maxLength = String(valueRange.upperBound).count
-        let filteredText = String(nextText.filter(\.isNumber).prefix(maxLength))
-        text = filteredText
-
-        guard !filteredText.isEmpty else {
-            onValueChange(nil)
-            return
-        }
-
-        guard let nextValue = Int(filteredText), valueRange.contains(nextValue) else { return }
-        onValueChange(nextValue)
     }
 }
 
